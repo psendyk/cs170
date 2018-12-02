@@ -20,6 +20,21 @@ path_to_inputs = "./all_inputs"
 ###########################################
 path_to_outputs = "./outputs"
 
+def findRowdyStudent(bus, rowdy_groups):
+    bus_rowdy_groups = []
+    
+    for group in rowdy_groups:
+        if set(group).issubset(bus):
+            bus_rowdy_groups.append(group)   
+    
+    student_to_groups = {s : 0 for s in bus}
+    for student in bus:
+        for group in bus_rowdy_groups:
+            if student in group:
+                student_to_groups[student] += 1   
+
+    most_rowdy = max(student_to_groups)
+    return most_rowdy
 
 def rawToPartition(partition):
     communities = set(partition.values())
@@ -60,7 +75,7 @@ def getPartition(G, res):
                 d[c] += [k]
     return d
 
-def fixPartition(G, partition, num_buses, bus_capacity):
+def fixPartition(G, partition, num_buses, bus_capacity, rowdy_groups):
     """ 
     Modifies the partition so that num_buses and bus_capacity constraints 
     are satisfied
@@ -110,10 +125,10 @@ def fixPartition(G, partition, num_buses, bus_capacity):
             for bus in range(og_partition_len, num_buses):
                 partition[bus].append(students_to_move.pop())                 
                
-    fixBusOverflow(partition, num_buses, bus_capacity)
+    fixBusOverflow(partition, num_buses, bus_capacity, rowdy_groups)
     return partition
 
-def fixBusOverflow(partition, num_buses, bus_capacity):
+def fixBusOverflow(partition, num_buses, bus_capacity, rowdy_groups):
     """ 
     Reassigns students in partitions so that bus_capacity 
     constraint is satisfied
@@ -138,7 +153,7 @@ def fixBusOverflow(partition, num_buses, bus_capacity):
             break;
         if len(partition[bus]) < bus_capacity:
             while len(partition[bus]) < bus_capacity and len(overflow) > 0:
-                partition[bus].append(overflow.pop())
+                partition[bus].append(overflow.pop(partition[bus].indexOf(findRowdyStudent(partition[bus],rowdy_groups))))
                     
                 
 def minCommKey(partition):
@@ -209,7 +224,7 @@ def solve(graph, num_buses, size_bus, constraints):
     
     #Fix group sizes
     
-    fixPartition(G,partition,num_buses,size_bus)
+    fixPartition(G,partition,num_buses,size_bus, rowdy_groups)
     
     #Adjust weight according to constraints
     decreaseWeightForRowdy(G,rowdy_groups)
@@ -218,7 +233,7 @@ def solve(graph, num_buses, size_bus, constraints):
     partition = community.best_partition(G,resolution=1,weight='weight')
     partition = rawToPartition(partition)
 
-    fixPartition(G,partition,num_buses,size_bus)
+    fixPartition(G,partition,num_buses,size_bus, rowdy_groups)
 
     return partition
 
