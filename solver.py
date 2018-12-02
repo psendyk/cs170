@@ -21,6 +21,15 @@ path_to_inputs = "./all_inputs"
 ###########################################
 path_to_outputs = "./outputs"
 
+def computre_score(G, partition):
+    all_edges = []
+    for bus in partition.values():
+        edges = []
+        for node in bus:
+            edges += [(node,i) for i in G[node] if ((i in bus) and ((i,node) not in edges))]
+        all_edges += edges
+    return len(all_edges) / len(G.edges())
+
 def findRowdyStudent(bus, rowdy_groups):
     bus_rowdy_groups = []
     
@@ -47,11 +56,21 @@ def rawToPartition(partition):
                 dictionary[community] += [key]
     return dictionary
 
-def decreaseWeightForRowdy(G,rowdy_groups):
-    for (u,v) in G.edges():
+def decreaseWeightForRowdy(G, partition,rowdy_groups):
+    all_edges = []
+    for bus in partition.values():
+        edges = []
+        for node in bus:
+            edges += [(node,i) for i in G[node] if ((i in bus) and ((i,node) not in edges))]
+        all_edges += edges
+
+
+    for (u,v) in all_edges:
         for group in rowdy_groups:
             if (u in group) and (v in group):
-                G[u][v]['weight'] -= 1
+                G[u][v]['weight'] = G[u][v]['weight'] / 2
+            else:
+                G[u][v]['weight'] = G[u][v]['weight'] * 4
 
 def getPartition(G, res):
     """ 
@@ -154,7 +173,7 @@ def fixBusOverflow(partition, num_buses, bus_capacity, rowdy_groups):
             break;
         if len(partition[bus]) < bus_capacity:
             while len(partition[bus]) < bus_capacity and len(overflow) > 0:
-                partition[bus].append(overflow.pop(partition[bus].indexOf(findRowdyStudent(partition[bus],rowdy_groups))))
+                partition[bus].append(overflow.pop())
                     
                 
 def minCommKey(partition):
@@ -211,7 +230,7 @@ def solve(graph, num_buses, size_bus, constraints):
     rowdy_groups = list(rowdy_groups for rowdy_groups,_ in itertools.groupby(rowdy_groups))
 
     #Set initial edge weights
-    nx.set_edge_attributes(G,len(rowdy_groups)+1,'weight')
+    nx.set_edge_attributes(G,1,'weight')
     
     #Remove edges  between nodes that are in size-2 rowdy groups [u,v]
     for group in rowdy_groups:
@@ -228,13 +247,9 @@ def solve(graph, num_buses, size_bus, constraints):
     fixPartition(G,partition,num_buses,size_bus, rowdy_groups)
     
     #Adjust weight according to constraints
-    decreaseWeightForRowdy(G,rowdy_groups)
-    
-    #Repartition with new weights
-    partition = community.best_partition(G,resolution=1,weight='weight')
-    partition = rawToPartition(partition)
+    decreaseWeightForRowdy(G, partition,rowdy_groups)
 
-    fixPartition(G,partition,num_buses,size_bus, rowdy_groups)
+
 
     return partition
 
@@ -286,6 +301,9 @@ def main():
         os.mkdir(path_to_outputs)
 
     for size in size_categories:
+        print()
+        print(size)
+        print()
         category_path = path_to_inputs + "/" + size
         output_category_path = path_to_outputs + "/" + size
         category_dir = os.fsencode(category_path)
