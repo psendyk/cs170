@@ -2,8 +2,8 @@ import sys
 from output_scorer import *
 
 def run_scores(i):
-	input_folder = "./all_inputs/medium/"+str(i)
-	output_file = "./outputs/medium/"+str(i)+".out"
+	input_folder = "./all_inputs/small/"+str(i)
+	output_file = "./outputs/small/"+str(i)+".out"
 	score, msg =  score_output(input_folder, output_file)
 	return msg, score
 

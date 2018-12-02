@@ -6,6 +6,7 @@ from networkx.algorithms.community import greedy_modularity_communities
 import community
 import itertools
 import numpy as np
+from multiprocessing import Pool
 
 ###########################################
 # Change this variable to the path to 
@@ -257,20 +258,33 @@ def solve2(G, num_buses, size_bus, constraints):
     """
         Edge weights exponential funciton based on how many rowdy groups two nodes are in
     """
-    # Preprocess the graph
-    G = graph
+    # Remove self-loops
     G.remove_edges_from(nx.selfloop_edges(G))
+    
+    #Remove duplicate rowdy_groups
+    rowdy_groups = constraints
+    rowdy_groups.sort()
+    rowdy_groups = list(rowdy_groups for rowdy_groups,_ in itertools.groupby(rowdy_groups))
+
 
     # w is our function with two hyperparameters c,d
     # x is the number of common rowdy groups
     # y is the size of the smallest rowdy group
     weight = lambda c, d: lambda x, y: np.exp(c/x)*d*np.log(y-1)
-    w_baseline = h(1,1)
+    w_baseline = weight(1,1)
 
+    remove = []
     for (u,v) in G.edges:
         x, y = find_x_y(u, v, rowdy_groups)
+        if x == 0:
+            x = 0.25
         w = w_baseline(x, y)
-        nx.set_edge_attributes(G, 'weight', {(u,v): w})
+        if w > 0:
+            G[u][v]['weight'] = w
+        else:
+            remove.append((u,v))
+
+    G.remove_edges_from(remove)
 
     partition = community.best_partition(G,resolution=1,weight='weight')
     partition = rawToPartition(partition)
@@ -280,7 +294,7 @@ def solve2(G, num_buses, size_bus, constraints):
 
 
 def find_x_y(u, v, rowdy_groups):
-    size_smallest = np.inf 
+    size_smallest = 50
     num_groups = 0
     for group in rowdy_groups:
         if (u in group) and (v in group):
@@ -300,10 +314,8 @@ def main():
     if not os.path.isdir(path_to_outputs):
         os.mkdir(path_to_outputs)
 
+    tasks = []
     for size in size_categories:
-        print()
-        print(size)
-        print()
         category_path = path_to_inputs + "/" + size
         output_category_path = path_to_outputs + "/" + size
         category_dir = os.fsencode(category_path)
@@ -312,10 +324,22 @@ def main():
             os.mkdir(output_category_path)
 
         for input_folder in os.listdir(category_dir):
-            print(input_folder)
             input_name = os.fsdecode(input_folder) 
             graph, num_buses, size_bus, constraints = parse_input(category_path + "/" + input_name)
-            solution = solve(graph, num_buses, size_bus, constraints)
+            tasks.append((graph, num_buses,size_bus,constraints))
+            # solution = solve(graph, num_buses, size_bus, constraints)
+        
+        print("finished creating tasks for " + size)
+
+        pool = Pool(8)
+        results = [pool.apply_async(solve, t) for t in tasks]
+        pool.close()
+        pool.join()
+
+        print("finished solving tasks for " + size)
+        
+        for result in results:
+            solution = result.get()
             output_file = open(output_category_path + "/" + input_name + ".out", "w")
 
             #TODO: modify this to write your solution to your 
@@ -326,6 +350,8 @@ def main():
                 output_file.write("\n")
 
             output_file.close()
+
+        print("finished writing solutions for " + size)
 
 if __name__ == '__main__':
     main()
