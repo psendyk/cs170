@@ -5,6 +5,7 @@ from networkx.algorithms import approximation as apxa
 from networkx.algorithms.community import greedy_modularity_communities
 import community
 import itertools
+import numpy as np
 
 ###########################################
 # Change this variable to the path to 
@@ -236,6 +237,42 @@ def solve(graph, num_buses, size_bus, constraints):
     fixPartition(G,partition,num_buses,size_bus, rowdy_groups)
 
     return partition
+
+def solve2(G, num_buses, size_bus, constraints):
+    """
+        Edge weights exponential funciton based on how many rowdy groups two nodes are in
+    """
+    # Preprocess the graph
+    G = graph
+    G.remove_edges_from(nx.selfloop_edges(G))
+
+    # w is our function with two hyperparameters c,d
+    # x is the number of common rowdy groups
+    # y is the size of the smallest rowdy group
+    weight = lambda c, d: lambda x, y: np.exp(c/x)*d*np.log(y-1)
+    w_baseline = h(1,1)
+
+    for (u,v) in G.edges:
+        x, y = find_x_y(u, v, rowdy_groups)
+        w = w_baseline(x, y)
+        nx.set_edge_attributes(G, 'weight', {(u,v): w})
+
+    partition = community.best_partition(G,resolution=1,weight='weight')
+    partition = rawToPartition(partition)
+    fixPartition(G,partition,num_buses,size_bus, rowdy_groups)
+
+    return partition
+
+
+def find_x_y(u, v, rowdy_groups):
+    size_smallest = np.inf 
+    num_groups = 0
+    for group in rowdy_groups:
+        if (u in group) and (v in group):
+            num_groups += 1
+            if len(group) < size_smallest:
+                size_smallest = len(group)
+    return num_groups, size_smallest
 
 def main():
     '''
